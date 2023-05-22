@@ -1,6 +1,7 @@
 import cv2
 import math
 import argparse
+import numpy as np
 
 import mysql.connector
 
@@ -8,14 +9,16 @@ mydb = mysql.connector.connect(host = "localhost", username = "root", password =
 
 mycursor = mydb.cursor()
 
-def highlightFace(net, frame, conf_threshold=0.7):
+a,b,c = 1,25,1
+
+def highlightFace(net, frame, conf_threshold=0.5):
     frameOpencvDnn=frame.copy()
     frameHeight=frameOpencvDnn.shape[0]
     frameWidth=frameOpencvDnn.shape[1]
     blob=cv2.dnn.blobFromImage(frameOpencvDnn, 1.0, (300, 300), [104, 117, 123], True, False)
 
     net.setInput(blob)
-    detections=net.forward()
+    detections = net.forward()
     faceBoxes=[]
     for i in range(detections.shape[2]):
         confidence=detections[0,0,i,2]
@@ -25,7 +28,7 @@ def highlightFace(net, frame, conf_threshold=0.7):
             x2=int(detections[0,0,i,5]*frameWidth)
             y2=int(detections[0,0,i,6]*frameHeight)
             faceBoxes.append([x1,y1,x2,y2])
-            cv2.rectangle(frameOpencvDnn, (x1,y1), (x2,y2), (0,255,0), int(round(frameHeight/150)), 8)
+            cv2.rectangle(frameOpencvDnn, (x1,y1), (x2,y2), (0,255,0), int(round(frameHeight/150)), 2)
     return frameOpencvDnn,faceBoxes
 
 
@@ -42,7 +45,7 @@ genderProto="gender_deploy.prototxt"
 genderModel="gender_net.caffemodel"
 
 MODEL_MEAN_VALUES=(78.4263377603, 87.7689143744, 114.895847746)
-ageList=['(0-4)', '(5-10)', '(11-15)', '(16-20)', '(21-30)', '(31-42)', '(43-55)', '(56-100)']
+ageList=['(0-3)', '(4-10)', '(11-15)', '(16-20)', '(21-30)', '(31-42)', '(43-55)', '(56-100)']
 genderList=['Male','Female']
 
 faceNet=cv2.dnn.readNet(faceModel,faceProto)
@@ -62,6 +65,8 @@ while cv2.waitKey(1)<0 :
         print("No face detected")
 
     for faceBox in faceBoxes:
+        a += 1
+
         face=frame[max(0,faceBox[1]-padding):
                    min(faceBox[3]+padding,frame.shape[0]-1),max(0,faceBox[0]-padding)
                    :min(faceBox[2]+padding, frame.shape[1]-1)]
@@ -70,37 +75,40 @@ while cv2.waitKey(1)<0 :
         genderNet.setInput(blob)
         genderPreds=genderNet.forward()
         gender=genderList[genderPreds[0].argmax()]
-        print(f'Gender: {gender}')
 
         ageNet.setInput(blob)
         agePreds=ageNet.forward()
         age=ageList[agePreds[0].argmax()]
-        print(f'Age: {age[1:-1]} years')
 
-        k,flag = 1,1
-        val = (gender,age[1:-1])
-        mycursor.execute("select name,age from main_tab")
-        result = mycursor.fetchall()
+        if a == (b*c):
+            print(f'Gender: {gender}')
+            print(f'Age: {age[1:-1]} years')
+            c += 1
 
-        for x in result:
-            print(x,"   ",val)
-            if x == val:
-                sql = "select count from main_tab where name = %s and age = %s" 
+            k,flag = 1,1
+            val = (gender,age[1:-1])
+            mycursor.execute("select gender,age from main_tab")
+            result = mycursor.fetchall()
+
+            for x in result:
+                #print(x,"   ",val)
+                if x == val:
+                    sql = "select count from main_tab where gender = %s and age = %s" 
+                    mycursor.execute(sql,val)
+                    res = mycursor.fetchone()
+                    res = int(res[0]) + 1
+                    #print(gender,"",age)
+                    sql = "update main_tab set count = count+1 where gender = %s and age = %s"
+                    v = [gender,age[1:-1]]
+                    mycursor.execute(sql,v)
+                    mydb.commit()
+                    flag = 0
+
+            if flag:
+                sql = "insert into main_tab values(%s,%s,%s)"
+                val = (gender,age[1:-1],str(k))
                 mycursor.execute(sql,val)
-                res = mycursor.fetchone()
-                res = int(res[0]) + 1
-                print(gender,"",age)
-                sql = "update main_tab set count = count+1 where name = %s and age = %s"
-                v = [gender,age[1:-1]]
-                mycursor.execute(sql,v)
                 mydb.commit()
-                flag = 0
-
-        if flag:
-            sql = "insert into main_tab values(%s,%s,%s)"
-            val = (gender,age[1:-1],str(k))
-            mycursor.execute(sql,val)
-            mydb.commit()
 
         cv2.putText(resultImg, f'{gender}, {age}', (faceBox[0], faceBox[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,255), 2, cv2.LINE_AA)
         cv2.imshow("Detecting age and gender", resultImg)
