@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+
+        .top-space {
+            height: 50px;
+            padding: 10px;
+            margin-top: 0px;
+            background-color: rgb(46, 134, 127);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            box-shadow: 0px 2px 4px rgb(187, 183, 183);
+        }
+        
+        .top-space h2 {
+          text-align: center;
+          margin: 0 auto;
+        }
+
+        .logout-icon {
+            
+            font-size: 25px;
+            color: #c5c5c5;
+            cursor: auto;
+        }
+        .body-color{
+            background-color: rgb(12, 51, 63);
+        }
+        .chart-container-wrapper {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px;
+            border: 2px solid #a3a1a1;
+            border-radius: 10px;
+        }
+        .chart-container {
+            width: 600px;
+            height: 400px;
+            border: 1px solid #cccccc;
+            background-color: rgb(128, 190, 190);
+            border-radius: 10px;
+            padding: 10px;
+            margin: 20px;
+            margin-top: 40px;
+        }
+        button {
+            background-color: rgb(46, 134, 127);
+            color: white;
+            font-size: 16px;
+            padding: 10px;
+            border-radius: 5px;
+            margin-left: 30px;
+        }
+
+        .decorated-dropdown {
+            margin-top: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: rgb(46, 134, 127);
+            font-size: 16px;
+            color: white;
+            appearance: none;
+            -moz-appearance: none;
+            -webkit-appearance: none;
+            background-image: none;
+        }
+
+        .box {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: rgb(46, 134, 127);
+            font-size: 16px;
+            color: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: inline;
+            float: right;
+            margin-right: 60px;
+        }
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.3/dist/Chart.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body class="body-color">
+    <div class="top-space">
+        <h2 style="color: rgb(222, 226, 225);">Customer Analysis and Targeted Marketing</h2>
+        <i class="fas fa-sign-out-alt logout-icon" onclick="logout()"></i>
+    </div>
+    <select class="decorated-dropdown" id="graph-select">
+        <option value="current">Current stats</option>
+        <option value="week">Last week stats</option>
+        <option value="month">Last month stats</option>
+        <option value="all">All time stats</option>
+    </select>
+    <div class="box" id="cur_date"></div>
+    <div class="chart-container-wrapper">
+        <div class="chart-container" id="leftChartContainer">
+            <canvas id="genderPieChart"></canvas>
+        </div>
+        <div class="chart-container" id="rightChartContainer">
+            <canvas id="genderAgeBarChart"></canvas>
+        </div>
+    </div>
+
+    <button type="button" onclick="show()">Recommend products</button>
+    <h3 id="maleproducts" style="display: none; color: white;">Male Products : category : {{maleProduct|safe}}</h3>
+    <h3 id="femaleproducts" style="display: none; color: white;">Female Products : category {{femaleProduct|safe}}</h3>
+    <script>
+        // Retrieve the data from the server and assign it to the 'data' variable
+        function show(){
+            document.getElementById("maleproducts").style.display = 'block';
+            document.getElementById("femaleproducts").style.display = 'block';
+        }
+
+        function logout(){
+            window.location.href = '';
+        }
+    </script>
+    <script>
+        var cur = 'current';
+        
+        if(cur == 'current'){
+            $.ajax({
+                headers: { "X-CSRFToken": '{{csrf_token}}' },
+                url: 'data_view',
+                type: 'POST',
+                data: {
+                  selectedGraph: cur
+                },
+                success: function(response) {
+                  // Update the graph with the received data
+                  updateGraph(response);
+                },
+                error: function(xhr, status, error) {
+                  console.error('Error:', error);
+                }
+            });
+        }
+
+
+        $(document).ready(function() {
+            // Function to handle the dropdown selection change
+            $('#graph-select').change(function() {
+              var selectedGraph = $(this).val();
+            
+              // Make an AJAX request to the Django view
+              $.ajax({
+                headers: { "X-CSRFToken": '{{csrf_token}}' },
+                url: 'data_view',
+                type: 'POST',
+                data: {
+                  selectedGraph: selectedGraph
+                },
+                success: function(response) {
+                  // Update the graph with the received data
+                  clearGraph();
+                  updateGraph(response);
+                },
+                error: function(xhr, status, error) {
+                  console.error('Error:', error);
+                }
+              });
+            });
+        });
+      
+
+        function clearGraph(){
+            var graph_1 = document.getElementById('genderPieChart');
+            var graph_2 = document.getElementById('genderAgeBarChart');
+
+            graph_1.parentNode.removeChild(graph_1);
+            graph_2.parentNode.removeChild(graph_2);
+            
+            var canvas_1 = document.createElement('canvas');
+            var canvas_2 = document.createElement('canvas');
+
+            canvas_1.id = 'genderPieChart';
+            canvas_2.id = 'genderAgeBarChart';
+
+            document.getElementById('leftChartContainer').appendChild(canvas_1)
+            document.getElementById('rightChartContainer').appendChild(canvas_2)
+        }
+
+
+          // Function to update the graph with the received data
+        function updateGraph(data) {
+            // Replace this with your own graph update logic
+            console.log('Received data:', data);
+            var d = document.getElementById('cur_date');
+            d.textContent = data.cur_date;
+            var data1 = {
+                labels: ['Male', 'Female'],
+                datasets: [{
+                    data: data.gender_count,
+                    backgroundColor: ['blue', 'tomato']
+                }]
+            };
+
+            // Create the pie chart
+            var ctx = document.getElementById('genderPieChart').getContext('2d');
+            var genderPieChart = new Chart(ctx, {
+                type: 'pie',
+                data: data1,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+
+            var data2 = {
+                labels: data.age_cat,
+                datasets: [{
+                    label: 'Male',
+                    data: data.male_cat,
+                    backgroundColor: 'blue'
+                }, {
+                    label: 'Female',
+                    data: data.female_cat,
+                    backgroundColor: 'tomato'
+                }]
+            };
+            // Create the bar chart
+            var ctx = document.getElementById('genderAgeBarChart').getContext('2d');
+            var genderAgeBarChart = new Chart(ctx, {
+                type: 'bar',
+                data: data2,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+    </script>
+</body>
+</html>
